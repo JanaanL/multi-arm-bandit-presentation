@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>The Multi-Armed Bandit</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f9f8f6; color: #1e2235;
+  max-width: 1100px; margin: 0 auto; padding: 24px 24px 80px;
+  font-size: 19px;
+}
+
+/* ---- Typography ---- */
+h1        { font-size: 2em;   color: #1e2235; margin-bottom: 6px; }
+h2        { font-size: 1.3em; color: #1e2235; margin-bottom: 0; }
+.page-sub { color: #4a5068; font-size: 1.1em; margin-bottom: 28px; }
+p         { line-height: 1.7; color: #4a5068; font-size: 1em; }
+
+/* ---- Config panel ---- */
+.config-panel {
+  background: #ffffff; border: 1px solid #e5e4e0;
+  border-radius: 12px; padding: 20px 24px; margin-bottom: 20px;
+}
+.config-panel h3 {
+  font-size: 0.95em; text-transform: uppercase; letter-spacing: 0.1em;
+  color: #4a5068; margin-bottom: 16px;
+}
+.config-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px; align-items: center;
+}
+.slider-row { display: flex; flex-direction: column; gap: 7px; }
+.slider-row label { font-size: 1em; color: #1e2235; }
+.slider-row input[type=range] { width: 100%; accent-color: #4f46e5; height: 6px; }
+.slider-val { font-weight: 700; font-size: 1.05em; }
+.val-a { color: #ef4444; }
+.val-b { color: #d97706; }
+.val-c { color: #059669; }
+.val-p { color: #4f46e5; }
+.val-e { color: #4f46e5; }
+.config-actions { display: flex; align-items: flex-end; padding-bottom: 2px; }
+
+/* ---- Buttons ---- */
+button {
+  padding: 11px 24px; border-radius: 8px; border: none;
+  font-size: 1em; font-weight: 700; cursor: pointer; transition: all 0.15s;
+  letter-spacing: 0.02em;
+}
+button:hover:not(:disabled)  { filter: brightness(1.1); transform: translateY(-1px); }
+button:active:not(:disabled) { transform: translateY(0); }
+button:disabled { opacity: 0.35; cursor: not-allowed; }
+.btn-reset   { background: #e5e4e0; color: #1e2235; }
+.btn-clear   {
+  background: #f4f3f0; color: #94a3b8;
+  border: 1px solid #e5e4e0; font-size: 0.85em;
+  padding: 7px 14px; font-weight: 600;
+}
+.btn-stage1  { background: #ef4444; color: #ffffff; }
+.btn-stage2  { background: #4f46e5; color: #ffffff; }
+.btn-stage3  { background: #d97706; color: #ffffff; }
+.btn-stage4  { background: #059669; color: #ffffff; }
+
+/* ===== STICKY CHART ===== */
+.sticky-chart-outer {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #f9f8f6;
+  padding: 10px 0 14px;
+  border-bottom: 1px solid #e5e4e0;
+  margin-bottom: 28px;
+}
+.chart-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 10px;
+}
+.chart-title {
+  font-size: 0.95em; text-transform: uppercase; letter-spacing: 0.1em;
+  color: #4a5068;
+}
+canvas { width: 100%; display: block; border-radius: 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; }
+.legend-item { display: flex; align-items: center; gap: 7px; font-size: 1.05em; color: #1e2235; }
+.legend-dot  { width: 16px; height: 3px; border-radius: 2px; flex-shrink: 0; }
+
+/* ---- Stages ---- */
+.stage {
+  margin-bottom: 40px; border: 1px solid #e5e4e0;
+  border-radius: 14px; overflow: hidden;
+  scroll-margin-top: 320px; /* offset for sticky chart */
+}
+.stage-header {
+  background: #ffffff; padding: 18px 24px;
+  display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #e5e4e0;
+}
+.stage-badge {
+  font-size: 0.9em; text-transform: uppercase; letter-spacing: 0.1em;
+  padding: 4px 12px; border-radius: 20px; font-weight: 700; flex-shrink: 0;
+}
+.badge-1 { background: #fef2f2; color: #ef4444; }
+.badge-2 { background: #eef2ff; color: #4f46e5; }
+.badge-3 { background: #fffbeb; color: #d97706; }
+.badge-4 { background: #ecfdf5; color: #059669; }
+.stage-desc-text { font-size: 1em; color: #4a5068; flex: 1; }
+
+.stage-body { padding: 22px 24px; background: #f9f8f6; }
+.stage-explanation {
+  background: #ffffff; border: 1px solid #e5e4e0; border-left: 3px solid;
+  border-radius: 8px; padding: 16px 20px; margin-bottom: 22px; font-size: 1em;
+  line-height: 1.7; color: #1e2235;
+}
+.stage-controls {
+  display: flex; align-items: center; gap: 16px; margin-bottom: 22px; flex-wrap: wrap;
+}
+.stage-controls label { font-size: 1em; color: #1e2235; }
+.stage-controls input[type=range] { width: 140px; accent-color: #4f46e5; }
+
+/* ---- Algorithm panels ---- */
+.algo-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.algo-grid-1 { display: grid; grid-template-columns: 1fr; gap: 18px; }
+@media (max-width: 700px) { .algo-grid-2 { grid-template-columns: 1fr; } }
+
+.algo-panel {
+  background: #ffffff; border: 1px solid #e5e4e0;
+  border-radius: 10px; padding: 18px 20px;
+}
+.algo-name  { font-size: 1.1em; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 800; margin-bottom: 5px; }
+.algo-logic { font-size: 1em; color: #4a5068; margin-bottom: 16px; }
+.algo-stats { display: flex; gap: 28px; margin-top: 18px; font-size: 0.9em; }
+.stat-block { display: flex; flex-direction: column; gap: 3px; }
+.stat-label { color: #4a5068; font-size: 1em; text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-value { font-weight: 700; color: #1e2235; font-size: 1.9em; }
+
+/* ---- Pull distribution bars ---- */
+.pull-bars-title {
+  font-size: 1em; text-transform: uppercase; letter-spacing: 0.08em;
+  color: #4a5068; margin-bottom: 12px;
+}
+.pull-bars { display: flex; flex-direction: column; gap: 14px; }
+.bar-row   { display: grid; grid-template-columns: 130px 1fr 120px; align-items: center; gap: 12px; }
+.bar-machine-label { font-size: 1.1em; font-weight: 700; }
+.bar-track { background: #f0efec; border-radius: 5px; height: 38px; overflow: hidden; }
+.bar-fill  { height: 100%; border-radius: 5px; transition: width 0.05s linear; min-width: 0; }
+.bar-count { font-size: 1em; color: #4a5068; text-align: right; white-space: nowrap; }
+
+/* ---- Thompson side-by-side layout ---- */
+.ts-side-by-side {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start;
+}
+@media (max-width: 800px) { .ts-side-by-side { grid-template-columns: 1fr; } }
+
+/* ---- Thompson distribution canvas ---- */
+.ts-dist-wrap {
+  margin-top: 20px; background: #f4f3f0; border: 1px solid #e5e4e0;
+  border-radius: 8px; padding: 14px 16px;
+}
+.ts-dist-title { font-size: 1em; text-transform: uppercase; letter-spacing: 0.08em; color: #4a5068; margin-bottom: 10px; }
+.ts-dist-note  { font-size: 1em; color: #4a5068; margin-top: 8px; line-height: 1.5; }
+.ts-legend { display: flex; gap: 18px; margin-top: 10px; flex-wrap: wrap; }
+
+/* ---- Misc ---- */
+.eps-val { color: #4f46e5; font-weight: 700; }
+
+/* ---- Monte Carlo ---- */
+.badge-mc { background: #eff6ff; color: #1d4ed8; }
+.btn-mc   { background: #1d4ed8; color: #ffffff; }
+.mc-stat-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 16px; margin-top: 20px;
+}
+@media (max-width: 700px) { .mc-stat-grid { grid-template-columns: 1fr; } }
+.mc-stat-card {
+  background: #ffffff; border: 1px solid #e5e4e0;
+  border-radius: 10px; padding: 18px 20px;
+}
+.mc-stat-name { font-size: 1em; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.08em; margin-bottom: 14px; }
+.mc-stat-row { display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 0; border-bottom: 1px solid #f0efec; }
+.mc-stat-row:last-child { border-bottom: none; }
+.mc-stat-label { color: #4a5068; font-size: 0.95em; text-transform: uppercase; letter-spacing: 0.05em; }
+.mc-stat-val   { font-weight: 700; color: #1e2235; font-size: 1.3em; }
+</style>
+</head>
+<body>
+
+<h1>The Multi-Armed Bandit</h1>
+<p class="page-sub">A step-by-step exploration of exploration vs exploitation strategies across three machines.</p>
+
+<!-- ===== CONFIG ===== -->
+<div class="config-panel">
+  <h3>Machine Configuration</h3>
+  <div class="config-grid">
+    <div class="slider-row">
+      <label>Machine A payout: <span class="slider-val val-a" id="valA">35%</span></label>
+      <input type="range" id="rateA" min="5" max="95" value="35">
+    </div>
+    <div class="slider-row">
+      <label>Machine B payout: <span class="slider-val val-b" id="valB">40%</span></label>
+      <input type="range" id="rateB" min="5" max="95" value="40">
+    </div>
+    <div class="slider-row">
+      <label>Machine C payout: <span class="slider-val val-c" id="valC">50%</span></label>
+      <input type="range" id="rateC" min="5" max="95" value="50">
+    </div>
+    <div class="slider-row">
+      <label>Pulls per simulation: <span class="slider-val val-p" id="valPulls">500</span></label>
+      <input type="range" id="nPulls" min="100" max="2000" step="50" value="500">
+    </div>
+    <div class="config-actions">
+      <button class="btn-reset" id="resetConfig">Reset Config</button>
+    </div>
+  </div>
+</div>
+
+<!-- Wrapper ends before MC section so sticky chart unsticks when scrolling into MC -->
+<div class="sticky-stages-wrapper">
+
+<!-- ===== STICKY FLOATING CHART ===== -->
+<div class="sticky-chart-outer">
+  <div class="chart-header">
+    <span class="chart-title">Cumulative Reward — All Strategies</span>
+    <button class="btn-clear" id="clearAll">✕ Clear All</button>
+  </div>
+  <canvas id="mainChart" height="260"></canvas>
+  <div class="legend" id="mainLegend">
+    <div class="legend-item">
+      <div class="legend-dot" style="background:transparent;border-top:1px dashed #94a3b8;width:20px"></div>
+      Optimal
+    </div>
+  </div>
+</div>
+
+<!-- ===== STAGE 1 ===== -->
+<div class="stage" id="stage1">
+  <div class="stage-header">
+    <span class="stage-badge badge-1">Stage 1</span>
+    <h2>Pure Exploitation vs Pure Exploration</h2>
+    <span class="stage-desc-text">The two extremes — one commits too early, one never commits at all.</span>
+  </div>
+  <div class="stage-body">
+    <div class="stage-explanation" style="border-color:#ef4444;">
+      <strong style="color:#ef4444">Pure Exploitation</strong> pulls each machine 3 times to get initial data, then commits forever to whichever looked best. It decides quickly — but on very little evidence, so it often picks the wrong machine and never recovers.<br><br>
+      <strong style="color:#94a3b8">Pure Exploration</strong> picks randomly every single pull. It learns a lot about all three machines over time, but wastes its budget on machines it already knows are worse.
+    </div>
+    <div class="stage-controls">
+      <button class="btn-stage1" id="runStage1">▶ Run Stage 1</button>
+    </div>
+    <div class="algo-grid-2">
+      <div class="algo-panel">
+        <div class="algo-name" style="color:#ef4444">Pure Exploitation</div>
+        <div class="algo-logic">9-pull warmup (3 per machine), then commit forever to the best-looking machine</div>
+        <div class="pull-bars-title">Pull Distribution</div>
+        <div class="pull-bars" id="bars-exploit"></div>
+        <div class="algo-stats">
+          <div class="stat-block"><div class="stat-label">Reward</div><div class="stat-value" id="sv-exploit-r">—</div></div>
+          <div class="stat-block"><div class="stat-label">Regret</div><div class="stat-value" id="sv-exploit-g">—</div></div>
+          <div class="stat-block"><div class="stat-label">Committed</div><div class="stat-value" id="sv-exploit-c">—</div></div>
+        </div>
+      </div>
+      <div class="algo-panel">
+        <div class="algo-name" style="color:#94a3b8">Pure Exploration</div>
+        <div class="algo-logic">Always pick randomly — never exploits any knowledge it learns</div>
+        <div class="pull-bars-title">Pull Distribution</div>
+        <div class="pull-bars" id="bars-explore"></div>
+        <div class="algo-stats">
+          <div class="stat-block"><div class="stat-label">Reward</div><div class="stat-value" id="sv-explore-r">—</div></div>
+          <div class="stat-block"><div class="stat-label">Regret</div><div class="stat-value" id="sv-explore-g">—</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== STAGE 2 ===== -->
+<div class="stage" id="stage2">
+  <div class="stage-header">
+    <span class="stage-badge badge-2">Stage 2</span>
+    <h2>Epsilon-Greedy</h2>
+    <span class="stage-desc-text">A simple but powerful balance: mostly exploit, occasionally explore.</span>
+  </div>
+  <div class="stage-body">
+    <div class="stage-explanation" style="border-color:#4f46e5;">
+      <strong style="color:#4f46e5">Epsilon-Greedy</strong> picks the currently best-looking machine <strong>(1 − ε)</strong> of the time, and picks randomly <strong>ε</strong> of the time. It keeps exploring indefinitely — which means it can self-correct if it made a bad early decision. Watch the pull bars: it mostly converges on one machine but keeps small amounts of exploration running throughout.
+    </div>
+    <div class="stage-controls">
+      <label>Epsilon: <span class="eps-val" id="epsDisplay">10%</span></label>
+      <input type="range" id="epsilonSlider" min="1" max="50" value="10">
+      <button class="btn-stage2" id="runStage2">▶ Run Stage 2</button>
+    </div>
+    <div class="algo-grid-1">
+      <div class="algo-panel">
+        <div class="algo-name" style="color:#4f46e5">Epsilon-Greedy</div>
+        <div class="algo-logic" id="eg-logic">ε = 10% random exploration · 90% exploit current best estimate</div>
+        <div class="pull-bars-title">Pull Distribution</div>
+        <div class="pull-bars" id="bars-bandit"></div>
+        <div class="algo-stats">
+          <div class="stat-block"><div class="stat-label">Reward</div><div class="stat-value" id="sv-bandit-r">—</div></div>
+          <div class="stat-block"><div class="stat-label">Regret</div><div class="stat-value" id="sv-bandit-g">—</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== STAGE 3 ===== -->
+<div class="stage" id="stage3">
+  <div class="stage-header">
+    <span class="stage-badge badge-3">Stage 3</span>
+    <h2>Upper Confidence Bound (UCB)</h2>
+    <span class="stage-desc-text">Optimism in the face of uncertainty — no epsilon to tune.</span>
+  </div>
+  <div class="stage-body">
+    <div class="stage-explanation" style="border-color:#d97706;">
+      <strong style="color:#d97706">UCB</strong> scores each machine as <em>observed win rate + confidence bonus</em>. The bonus is large when a machine has been pulled few times and shrinks as data accumulates. Machines you know little about get explored automatically — and once you're confident a machine is bad, you stop wasting pulls on it. <strong>No epsilon to set.</strong><br><br>
+      Watch the pull bars carefully: UCB starts by spreading across all three machines, then gradually concentrates on the best one as confidence grows.
+    </div>
+    <div class="stage-controls">
+      <button class="btn-stage3" id="runStage3">▶ Run Stage 3</button>
+    </div>
+    <div class="algo-grid-1">
+      <div class="algo-panel">
+        <div class="algo-name" style="color:#d97706">UCB — Upper Confidence Bound</div>
+        <div class="algo-logic"></div>
+        <div class="pull-bars-title">Pull Distribution</div>
+        <div class="pull-bars" id="bars-ucb"></div>
+        <div class="algo-stats">
+          <div class="stat-block"><div class="stat-label">Reward</div><div class="stat-value" id="sv-ucb-r">—</div></div>
+          <div class="stat-block"><div class="stat-label">Regret</div><div class="stat-value" id="sv-ucb-g">—</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== STAGE 4 ===== -->
+<div class="stage" id="stage4">
+  <div class="stage-header">
+    <span class="stage-badge badge-4">Stage 4</span>
+    <h2>Thompson Sampling</h2>
+    <span class="stage-desc-text">Bayesian learning — watch the algorithm's beliefs update in real time.</span>
+  </div>
+  <div class="stage-body">
+    <div class="stage-explanation" style="border-color:#059669;">
+      <strong style="color:#059669">Thompson Sampling</strong> maintains a probability distribution over each machine's true payout rate — wide at first (high uncertainty), narrowing with every observation. Each pull it samples a random value from each distribution and picks the highest. Early on the wide distributions cause natural exploration. As data accumulates the distributions tighten and the algorithm homes in on the best machine.<br><br>
+      The chart below shows the three belief distributions updating in real time. Watch them narrow from flat lines into sharp peaks — converging toward the true payout rates shown as dashed vertical lines.
+    </div>
+    <div class="stage-controls">
+      <button class="btn-stage4" id="runStage4">▶ Run Stage 4</button>
+    </div>
+    <div class="algo-grid-1">
+      <div class="algo-panel">
+        <div class="algo-name" style="color:#059669">Thompson Sampling</div>
+        <div class="algo-logic"></div>
+        <div class="ts-side-by-side">
+          <div class="ts-left">
+            <div class="pull-bars-title">Pull Distribution</div>
+            <div class="pull-bars" id="bars-thompson"></div>
+            <div class="algo-stats" style="margin-top: 24px;">
+              <div class="stat-block"><div class="stat-label">Reward</div><div class="stat-value" id="sv-thompson-r">—</div></div>
+              <div class="stat-block"><div class="stat-label">Regret</div><div class="stat-value" id="sv-thompson-g">—</div></div>
+            </div>
+          </div>
+          <div class="ts-right">
+            <div class="ts-dist-wrap" style="margin-top: 0;">
+              <div class="ts-dist-title">Belief Distributions — Estimated Payout Rate per Machine</div>
+              <canvas id="tsDist" height="200"></canvas>
+              <div class="ts-legend">
+                <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div> Machine A</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> Machine B</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div> Machine C</div>
+                <div class="legend-item">
+                  <div class="legend-dot" style="background:transparent;border-top:1px dashed #94a3b8;width:20px"></div>
+                  True rates
+                </div>
+              </div>
+              <div class="ts-dist-note">Distributions start flat (uniform uncertainty) and narrow as the algorithm observes each machine. The peaks converge toward the true rates.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- end .sticky-stages-wrapper -->
+
+<!-- ===== MONTE CARLO ===== -->
+<div class="stage" id="stageMC">
+  <div class="stage-header">
+    <span class="stage-badge badge-mc">Monte Carlo</span>
+    <h2>100-Run Comparison</h2>
+    <span class="stage-desc-text">Run each algorithm 100 times to see which consistently wins.</span>
+  </div>
+  <div class="stage-body">
+    <div class="stage-explanation" style="border-color:#1d4ed8;">
+      A single run is noisy — any algorithm can get lucky. Running 100 simulations and averaging the results reveals which algorithm reliably finds the best machine faster. The chart shows the <strong>mean cumulative reward</strong> across all 100 runs for each algorithm.
+    </div>
+    <div class="stage-controls">
+      <button class="btn-mc" id="runMC">▶ Run 100 Simulations</button>
+    </div>
+    <canvas id="mcChart" height="300"></canvas>
+    <div class="legend" id="mcLegend" style="margin-top:14px;">
+      <div class="legend-item"><div class="legend-dot" style="background:#4f46e5"></div> Epsilon-Greedy</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> UCB</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div> Thompson Sampling</div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:transparent;border-top:1px dashed #94a3b8;width:20px"></div>
+        Oracle (theoretical best)
+      </div>
+    </div>
+    <div id="mcStats"></div>
+  </div>
+</div>
+
+<script>
+// ================================================================
+// CONSTANTS & STATE
+// ================================================================
+const MACHINE_COLORS = ['#ef4444', '#f59e0b', '#10b981'];
+const MACHINE_NAMES  = ['A', 'B', 'C'];
+const ALGO_META = {
+  exploit:  { color: '#ef4444', name: 'Pure Exploitation' },
+  explore:  { color: '#94a3b8', name: 'Pure Exploration'  },
+  bandit:   { color: '#4f46e5', name: 'Epsilon-Greedy'    },
+  ucb:      { color: '#f59e0b', name: 'UCB'               },
+  thompson: { color: '#10b981', name: 'Thompson Sampling' },
+};
+const LEGEND_ITEMS_ADDED = new Set();
+
+let cfg = { rates: [0.35, 0.40, 0.50], nPulls: 500, epsilon: 0.10 };
+let results    = {};
+let oracleTotal = null;   // realized optimal: always pull the best machine
+let animId     = null;
+let animFrame  = 0;
+let animAlgos  = [];
+const SPEED    = 1;
+
+// ================================================================
+// MATH UTILITIES
+// ================================================================
+function randn() {
+  return Math.sqrt(-2 * Math.log(Math.random())) * Math.cos(2 * Math.PI * Math.random());
+}
+function sampleGamma(shape) {
+  if (shape < 1) return sampleGamma(1 + shape) * Math.pow(Math.random(), 1 / shape);
+  const d = shape - 1/3, c = 1 / Math.sqrt(9 * d);
+  while (true) {
+    let x, v;
+    do { x = randn(); v = 1 + c * x; } while (v <= 0);
+    v = v * v * v;
+    const u = Math.random();
+    if (u < 1 - 0.0331 * x * x * x * x) return d * v;
+    if (Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v;
+  }
+}
+function sampleBeta(a, b) { const x = sampleGamma(a), y = sampleGamma(b); return x / (x + y); }
+
+function logGamma(z) {
+  const C = [0.99999999999980993,676.5203681218851,-1259.1392167224028,
+             771.32342877765313,-176.61502916214059,12.507343278686905,
+             -0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];
+  if (z < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * z)) - logGamma(1 - z);
+  z--;
+  let x = C[0];
+  for (let i = 1; i < 9; i++) x += C[i] / (z + i);
+  const t = z + 7.5;
+  return 0.5*Math.log(2*Math.PI) + (z+0.5)*Math.log(t) - t + Math.log(x);
+}
+function logBeta(a, b) { return logGamma(a) + logGamma(b) - logGamma(a + b); }
+function betaPDF(x, a, b) {
+  if (x <= 0 || x >= 1) return 0;
+  return Math.exp((a-1)*Math.log(x) + (b-1)*Math.log(1-x) - logBeta(a, b));
+}
+
+// ================================================================
+// ORACLE — always picks the best machine, also subject to randomness
+// ================================================================
+function runOracle(rates, nPulls) {
+  const bestRate = Math.max(...rates);
+  let total = 0;
+  for (let t = 0; t < nPulls; t++) {
+    total += Math.random() < bestRate ? 1 : 0;
+  }
+  return total;
+}
+
+// ================================================================
+// SIMULATION FUNCTIONS
+// ================================================================
+function runPureExploit(rates, nPulls) {
+  const WARMUP = 9;
+  let counts = [0,0,0], wins = [0,0,0], committed = -1, cumR = 0, history = [];
+  for (let t = 0; t < nPulls; t++) {
+    let choice;
+    if (t < WARMUP) {
+      choice = t % 3;
+    } else {
+      if (committed < 0) {
+        const obs = counts.map((c, i) => c > 0 ? wins[i]/c : 0);
+        committed = obs.indexOf(Math.max(...obs));
+      }
+      choice = committed;
+    }
+    const r = Math.random() < rates[choice] ? 1 : 0;
+    counts[choice]++; wins[choice] += r; cumR += r;
+    history.push({ choice, reward: r, cumReward: cumR, counts: [...counts], committed });
+  }
+  return { history, total: cumR };
+}
+
+function runPureExplore(rates, nPulls) {
+  let counts = [0,0,0], cumR = 0, history = [];
+  for (let t = 0; t < nPulls; t++) {
+    const choice = Math.floor(Math.random() * 3);
+    const r = Math.random() < rates[choice] ? 1 : 0;
+    counts[choice]++; cumR += r;
+    history.push({ choice, reward: r, cumReward: cumR, counts: [...counts] });
+  }
+  return { history, total: cumR };
+}
+
+function runEpsilonGreedy(rates, nPulls, epsilon) {
+  let counts = [0,0,0], wins = [0,0,0], cumR = 0, history = [];
+  for (let t = 0; t < nPulls; t++) {
+    let choice;
+    const untried = [0,1,2].find(i => counts[i] === 0);
+    if (untried !== undefined) {
+      choice = untried;
+    } else if (Math.random() < epsilon) {
+      choice = Math.floor(Math.random() * 3);
+    } else {
+      const obs = counts.map((c, i) => wins[i] / c);
+      choice = obs.indexOf(Math.max(...obs));
+    }
+    const r = Math.random() < rates[choice] ? 1 : 0;
+    counts[choice]++; wins[choice] += r; cumR += r;
+    history.push({ choice, reward: r, cumReward: cumR, counts: [...counts] });
+  }
+  return { history, total: cumR };
+}
+
+function runUCB(rates, nPulls) {
+  let counts = [0,0,0], wins = [0,0,0], cumR = 0, history = [];
+  for (let t = 0; t < nPulls; t++) {
+    let choice;
+    const untried = [0,1,2].find(i => counts[i] === 0);
+    if (untried !== undefined) {
+      choice = untried;
+    } else {
+      const scores = [0,1,2].map(i =>
+        wins[i]/counts[i] + Math.sqrt(2 * Math.log(t) / counts[i])
+      );
+      choice = scores.indexOf(Math.max(...scores));
+    }
+    const r = Math.random() < rates[choice] ? 1 : 0;
+    counts[choice]++; wins[choice] += r; cumR += r;
+    history.push({ choice, reward: r, cumReward: cumR, counts: [...counts] });
+  }
+  return { history, total: cumR };
+}
+
+function runThompson(rates, nPulls) {
+  let alpha = [1,1,1], beta_ = [1,1,1], counts = [0,0,0], cumR = 0, history = [];
+  for (let t = 0; t < nPulls; t++) {
+    const samples = [0,1,2].map(i => sampleBeta(alpha[i], beta_[i]));
+    const choice = samples.indexOf(Math.max(...samples));
+    const r = Math.random() < rates[choice] ? 1 : 0;
+    if (r) alpha[choice]++; else beta_[choice]++;
+    counts[choice]++; cumR += r;
+    history.push({
+      choice, reward: r, cumReward: cumR, counts: [...counts],
+      alpha: [...alpha], beta: [...beta_]
+    });
+  }
+  return { history, total: cumR };
+}
+
+// ================================================================
+// PULL BARS
+// ================================================================
+function initPullBars(id) {
+  const el = document.getElementById('bars-' + id);
+  if (!el) return;
+  el.innerHTML = '';
+  MACHINE_NAMES.forEach((name, i) => {
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    row.innerHTML = `
+      <div class="bar-machine-label" style="color:${MACHINE_COLORS[i]}">
+        Machine ${name}
+        <span style="color:${MACHINE_COLORS[i]};opacity:0.6;font-weight:500;font-size:0.85em"> ${Math.round(cfg.rates[i]*100)}%</span>
+      </div>
+      <div class="bar-track">
+        <div class="bar-fill" id="bf-${id}-${i}" style="width:0%;background:${MACHINE_COLORS[i]}"></div>
+      </div>
+      <div class="bar-count" id="bc-${id}-${i}">0 pulls (0%)</div>`;
+    el.appendChild(row);
+  });
+}
+
+function updatePullBars(id, frameIdx) {
+  if (!results[id] || frameIdx < 0) return;
+  const hist   = results[id].history;
+  const { counts } = hist[Math.min(frameIdx, hist.length - 1)];
+  const total  = counts.reduce((a, b) => a + b, 0);
+  counts.forEach((n, i) => {
+    const pct  = total > 0 ? (n / total * 100) : 0;
+    const fill = document.getElementById(`bf-${id}-${i}`);
+    const cnt  = document.getElementById(`bc-${id}-${i}`);
+    if (fill) fill.style.width = pct.toFixed(1) + '%';
+    if (cnt)  cnt.textContent  = `${n} (${pct.toFixed(0)}%)`;
+  });
+}
+
+function resetPullBars(id) {
+  MACHINE_NAMES.forEach((_, i) => {
+    const fill = document.getElementById(`bf-${id}-${i}`);
+    const cnt  = document.getElementById(`bc-${id}-${i}`);
+    if (fill) fill.style.width = '0%';
+    if (cnt)  cnt.textContent  = '0 pulls (0%)';
+  });
+}
+
+// ================================================================
+// THOMPSON DISTRIBUTION CANVAS
+// ================================================================
+function drawThompsonDist(frameIdx) {
+  const canvas = document.getElementById('tsDist');
+  if (!canvas || !results.thompson) return;
+  const fi = Math.min(frameIdx, results.thompson.history.length - 1);
+  const { alpha, beta: beta_ } = results.thompson.history[fi];
+
+  const dpr  = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width  = rect.width  * dpr;
+  canvas.height = 200 * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const W = rect.width, H = 200;
+  const pad = { top: 16, right: 20, bottom: 34, left: 42 };
+  const cw  = W - pad.left - pad.right;
+  const ch  = H - pad.top  - pad.bottom;
+
+  ctx.fillStyle = '#f4f3f0';
+  ctx.fillRect(0, 0, W, H);
+
+  const N = 300;
+  let maxPDF = 0.01;
+  for (let m = 0; m < 3; m++) {
+    for (let i = 1; i < N; i++) {
+      const pdf = betaPDF(i / N, alpha[m], beta_[m]);
+      if (pdf > maxPDF) maxPDF = pdf;
+    }
+  }
+  maxPDF *= 1.15;
+
+  // Vertical grid
+  ctx.strokeStyle = '#e5e4e0'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const x = pad.left + (i / 4) * cw;
+    ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, pad.top + ch); ctx.stroke();
+    ctx.fillStyle = '#9399b2'; ctx.font = 'bold 15px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText((i * 25) + '%', x, H - pad.bottom + 18);
+  }
+
+  // True rate dashed lines
+  cfg.rates.forEach((rate, i) => {
+    const x = pad.left + rate * cw;
+    ctx.beginPath();
+    ctx.strokeStyle = MACHINE_COLORS[i] + '99';
+    ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
+    ctx.moveTo(x, pad.top); ctx.lineTo(x, pad.top + ch);
+    ctx.stroke(); ctx.setLineDash([]);
+  });
+
+  // Beta curves — fill then stroke
+  for (let m = 0; m < 3; m++) {
+    // Fill
+    ctx.beginPath();
+    ctx.moveTo(pad.left, pad.top + ch);
+    for (let i = 0; i <= N; i++) {
+      const x   = i / N;
+      const pdf = betaPDF(x, alpha[m], beta_[m]);
+      const px  = pad.left + x * cw;
+      const py  = pad.top + ch - (pdf / maxPDF) * ch;
+      ctx.lineTo(px, py);
+    }
+    ctx.lineTo(pad.left + cw, pad.top + ch);
+    ctx.closePath();
+    ctx.fillStyle = MACHINE_COLORS[m] + '28';
+    ctx.fill();
+
+    // Stroke
+    ctx.beginPath();
+    for (let i = 0; i <= N; i++) {
+      const x   = i / N;
+      const pdf = betaPDF(x, alpha[m], beta_[m]);
+      const px  = pad.left + x * cw;
+      const py  = pad.top + ch - (pdf / maxPDF) * ch;
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.strokeStyle = MACHINE_COLORS[m];
+    ctx.lineWidth = 3.5; ctx.setLineDash([]);
+    ctx.stroke();
+  }
+
+  // X-axis label
+  ctx.fillStyle = '#9399b2'; ctx.font = 'bold 15px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('Estimated payout rate', pad.left + cw / 2, H - 2);
+}
+
+function clearThompsonCanvas() {
+  const canvas = document.getElementById('tsDist');
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width  = rect.width * dpr;
+  canvas.height = 200 * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.fillStyle = '#f4f3f0';
+  ctx.fillRect(0, 0, rect.width, 200);
+}
+
+// ================================================================
+// MAIN CHART
+// ================================================================
+function drawMainChart() {
+  const canvas = document.getElementById('mainChart');
+  const dpr  = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width  = rect.width * dpr;
+  canvas.height = 260 * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const W = rect.width, H = 260;
+  const pad = { top: 14, right: 20, bottom: 38, left: 56 };
+  const cw  = W - pad.left - pad.right;
+  const ch  = H - pad.top  - pad.bottom;
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  const nPulls = cfg.nPulls;
+  const optMax = Math.max(...cfg.rates) * nPulls;
+  const yMax   = optMax * 1.06;
+
+  // Grid
+  ctx.strokeStyle = '#e5e4e0'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const y = pad.top + ch - (i/5) * ch;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cw, y); ctx.stroke();
+    ctx.fillStyle = '#9399b2'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText(Math.round((i/5) * yMax), pad.left - 8, y + 5);
+  }
+  ctx.fillStyle = '#9399b2'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center';
+  for (let i = 0; i <= 5; i++) {
+    const x = pad.left + (i/5) * cw;
+    ctx.fillText(Math.round((i/5) * nPulls), x, H - pad.bottom + 18);
+  }
+  ctx.fillText('Pulls', pad.left + cw/2, H - 2);
+
+  // Y-axis label
+  ctx.save(); ctx.translate(13, pad.top + ch/2); ctx.rotate(-Math.PI/2);
+  ctx.fillStyle = '#9399b2'; ctx.textAlign = 'center'; ctx.font = 'bold 15px sans-serif';
+  ctx.fillText('Cumulative Reward', 0, 0); ctx.restore();
+
+  // Optimal line
+  ctx.beginPath();
+  ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+  ctx.moveTo(pad.left, pad.top + ch);
+  ctx.lineTo(pad.left + cw, pad.top + ch - (optMax / yMax) * ch);
+  ctx.stroke(); ctx.setLineDash([]);
+
+  // Algorithm lines
+  ['exploit','explore','bandit','ucb','thompson'].forEach(key => {
+    if (!results[key]) return;
+    const hist   = results[key].history;
+    const endIdx = animAlgos.includes(key)
+      ? Math.min(animFrame, hist.length - 1)
+      : hist.length - 1;
+    if (endIdx < 0) return;
+
+    ctx.beginPath();
+    ctx.strokeStyle = ALGO_META[key].color;
+    ctx.lineWidth = 4; ctx.setLineDash([]);
+    for (let i = 0; i <= endIdx; i++) {
+      const x = pad.left + (i / (nPulls - 1)) * cw;
+      const y = pad.top  + ch - (hist[i].cumReward / yMax) * ch;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  });
+}
+
+// ================================================================
+// STATS
+// ================================================================
+function renderStats(key) {
+  if (!results[key]) return;
+  const total  = results[key].total;
+  const regret = oracleTotal !== null ? (oracleTotal - total).toFixed(0) : '—';
+
+  const rEl = document.getElementById(`sv-${key}-r`);
+  const gEl = document.getElementById(`sv-${key}-g`);
+  if (rEl) rEl.textContent = total;
+  if (gEl) gEl.textContent = regret;
+
+  if (key === 'exploit') {
+    const cEl = document.getElementById('sv-exploit-c');
+    const last = results.exploit.history[results.exploit.history.length - 1];
+    if (cEl) cEl.textContent = last.committed >= 0 ? `Machine ${MACHINE_NAMES[last.committed]}` : '?';
+  }
+}
+
+// ================================================================
+// LEGEND
+// ================================================================
+function addLegendItem(key) {
+  if (LEGEND_ITEMS_ADDED.has(key)) return;
+  LEGEND_ITEMS_ADDED.add(key);
+  const legend = document.getElementById('mainLegend');
+  const item   = document.createElement('div');
+  item.className = 'legend-item';
+  item.id = `legend-${key}`;
+  item.innerHTML = `<div class="legend-dot" style="background:${ALGO_META[key].color}"></div> ${ALGO_META[key].name}`;
+  legend.appendChild(item);
+}
+
+// ================================================================
+// ANIMATION LOOP
+// ================================================================
+function startAnimation(algoKeys, onComplete) {
+  if (animId) cancelAnimationFrame(animId);
+  animFrame = 0;
+  animAlgos = algoKeys;
+  let skipTick = 0;
+
+  function tick() {
+    skipTick = (skipTick + 1) % 2;
+    if (skipTick === 0) {
+      animFrame = Math.min(animFrame + SPEED, cfg.nPulls - 1);
+      drawMainChart();
+      algoKeys.forEach(key => {
+        updatePullBars(key, animFrame);
+        if (key === 'thompson') drawThompsonDist(animFrame);
+      });
+    }
+    if (animFrame < cfg.nPulls - 1) {
+      animId = requestAnimationFrame(tick);
+    } else {
+      animAlgos = [];
+      animId    = null;
+      algoKeys.forEach(key => renderStats(key));
+      if (onComplete) onComplete();
+    }
+  }
+  animId = requestAnimationFrame(tick);
+}
+
+// ================================================================
+// CLEAR ALL
+// ================================================================
+function clearAll() {
+  if (animId) { cancelAnimationFrame(animId); animId = null; }
+  results     = {};
+  oracleTotal = null;
+  animAlgos   = [];
+  animFrame   = 0;
+  LEGEND_ITEMS_ADDED.clear();
+
+  // Reset legend
+  document.getElementById('mainLegend').innerHTML = `
+    <div class="legend-item">
+      <div class="legend-dot" style="background:transparent;border-top:1px dashed #94a3b8;width:20px"></div>
+      Optimal
+    </div>`;
+
+  // Reset stat values
+  ['exploit','explore','bandit','ucb','thompson'].forEach(key => {
+    ['r','g','c'].forEach(s => {
+      const el = document.getElementById(`sv-${key}-${s}`);
+      if (el) el.textContent = '—';
+    });
+  });
+
+  // Re-enable all stage buttons
+  ['runStage1','runStage2','runStage3','runStage4'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.disabled = false;
+  });
+
+  // Reset and reinitialise pull bars
+  ['exploit','explore','bandit','ucb','thompson'].forEach(key => {
+    initPullBars(key);
+  });
+
+  // Clear canvases
+  clearThompsonCanvas();
+  drawMainChart();
+}
+
+// ================================================================
+// EVENT LISTENERS — STAGES
+// ================================================================
+document.getElementById('runStage1').addEventListener('click', function () {
+  this.disabled = true;
+  oracleTotal = runOracle(cfg.rates, cfg.nPulls);
+  results.exploit = runPureExploit(cfg.rates, cfg.nPulls);
+  results.explore = runPureExplore(cfg.rates, cfg.nPulls);
+  initPullBars('exploit');
+  initPullBars('explore');
+  addLegendItem('exploit');
+  addLegendItem('explore');
+  startAnimation(['exploit', 'explore'], () => { this.disabled = false; });
+});
+
+document.getElementById('runStage2').addEventListener('click', function () {
+  this.disabled = true;
+  if (oracleTotal === null) oracleTotal = runOracle(cfg.rates, cfg.nPulls);
+  results.bandit = runEpsilonGreedy(cfg.rates, cfg.nPulls, cfg.epsilon);
+  initPullBars('bandit');
+  addLegendItem('bandit');
+  startAnimation(['bandit'], () => { this.disabled = false; });
+});
+
+document.getElementById('runStage3').addEventListener('click', function () {
+  this.disabled = true;
+  if (oracleTotal === null) oracleTotal = runOracle(cfg.rates, cfg.nPulls);
+  results.ucb = runUCB(cfg.rates, cfg.nPulls);
+  initPullBars('ucb');
+  addLegendItem('ucb');
+  startAnimation(['ucb'], () => { this.disabled = false; });
+});
+
+document.getElementById('runStage4').addEventListener('click', function () {
+  this.disabled = true;
+  if (oracleTotal === null) oracleTotal = runOracle(cfg.rates, cfg.nPulls);
+  results.thompson = runThompson(cfg.rates, cfg.nPulls);
+  initPullBars('thompson');
+  addLegendItem('thompson');
+  drawThompsonDist(0);
+  startAnimation(['thompson'], () => { this.disabled = false; });
+});
+
+// ================================================================
+// EVENT LISTENERS — CONFIG & CLEAR
+// ================================================================
+document.getElementById('clearAll').addEventListener('click', clearAll);
+
+document.getElementById('resetConfig').addEventListener('click', function () {
+  document.getElementById('rateA').value  = 35;
+  document.getElementById('rateB').value  = 40;
+  document.getElementById('rateC').value  = 50;
+  document.getElementById('nPulls').value = 500;
+  document.getElementById('epsilonSlider').value = 10;
+  cfg = { rates: [0.35, 0.40, 0.50], nPulls: 500, epsilon: 0.10 };
+  document.getElementById('valA').textContent     = '35%';
+  document.getElementById('valB').textContent     = '40%';
+  document.getElementById('valC').textContent     = '50%';
+  document.getElementById('valPulls').textContent = '500';
+  document.getElementById('epsDisplay').textContent = '10%';
+  document.getElementById('eg-logic').textContent   = 'ε = 10% random exploration · 90% exploit current best estimate';
+});
+
+document.getElementById('rateA').addEventListener('input', function () {
+  cfg.rates[0] = parseInt(this.value) / 100;
+  document.getElementById('valA').textContent = this.value + '%';
+});
+document.getElementById('rateB').addEventListener('input', function () {
+  cfg.rates[1] = parseInt(this.value) / 100;
+  document.getElementById('valB').textContent = this.value + '%';
+});
+document.getElementById('rateC').addEventListener('input', function () {
+  cfg.rates[2] = parseInt(this.value) / 100;
+  document.getElementById('valC').textContent = this.value + '%';
+});
+document.getElementById('nPulls').addEventListener('input', function () {
+  cfg.nPulls = parseInt(this.value);
+  document.getElementById('valPulls').textContent = this.value;
+});
+document.getElementById('epsilonSlider').addEventListener('input', function () {
+  cfg.epsilon = parseInt(this.value) / 100;
+  document.getElementById('epsDisplay').textContent = this.value + '%';
+  document.getElementById('eg-logic').textContent =
+    `ε = ${this.value}% random exploration · ${100 - parseInt(this.value)}% exploit current best estimate`;
+});
+
+// ================================================================
+// MONTE CARLO
+// ================================================================
+let mcResults = null;
+
+function runMonteCarlo() {
+  const N = 100;
+  const nPulls = cfg.nPulls;
+  const bestRate = Math.max(...cfg.rates);
+
+  const sums = {
+    bandit:   new Float64Array(nPulls),
+    ucb:      new Float64Array(nPulls),
+    thompson: new Float64Array(nPulls),
+  };
+  const finals = { bandit: [], ucb: [], thompson: [] };
+
+  for (let i = 0; i < N; i++) {
+    const b = runEpsilonGreedy(cfg.rates, nPulls, cfg.epsilon);
+    const u = runUCB(cfg.rates, nPulls);
+    const t = runThompson(cfg.rates, nPulls);
+    for (let j = 0; j < nPulls; j++) {
+      sums.bandit[j]   += b.history[j].cumReward;
+      sums.ucb[j]      += u.history[j].cumReward;
+      sums.thompson[j] += t.history[j].cumReward;
+    }
+    finals.bandit.push(b.total);
+    finals.ucb.push(u.total);
+    finals.thompson.push(t.total);
+  }
+
+  const avg = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
+  const avgFinal = {
+    bandit:   avg(finals.bandit),
+    ucb:      avg(finals.ucb),
+    thompson: avg(finals.thompson),
+    oracle:   bestRate * nPulls,
+  };
+
+  // Mean trajectory per pull
+  const means = {
+    bandit:   Array.from(sums.bandit,   v => v / N),
+    ucb:      Array.from(sums.ucb,      v => v / N),
+    thompson: Array.from(sums.thompson, v => v / N),
+    oracle:   Array.from({ length: nPulls }, (_, i) => bestRate * (i + 1)),
+  };
+
+  // Win counts — which algo had highest reward in each run
+  const wins = { bandit: 0, ucb: 0, thompson: 0 };
+  for (let i = 0; i < N; i++) {
+    const best = Math.max(finals.bandit[i], finals.ucb[i], finals.thompson[i]);
+    if (finals.bandit[i]   >= best) wins.bandit++;
+    if (finals.ucb[i]      >= best) wins.ucb++;
+    if (finals.thompson[i] >= best) wins.thompson++;
+  }
+
+  return { means, avgFinal, wins, N };
+}
+
+function drawMCChart() {
+  if (!mcResults) return;
+  const canvas = document.getElementById('mcChart');
+  const dpr  = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width  = rect.width * dpr;
+  canvas.height = 300 * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const W = rect.width, H = 300;
+  const pad = { top: 14, right: 20, bottom: 38, left: 56 };
+  const cw = W - pad.left - pad.right;
+  const ch = H - pad.top - pad.bottom;
+  const nPulls = cfg.nPulls;
+  const yMax = mcResults.avgFinal.oracle * 1.06;
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid
+  ctx.strokeStyle = '#e5e4e0'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const y = pad.top + ch - (i / 5) * ch;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cw, y); ctx.stroke();
+    ctx.fillStyle = '#4a5068'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText(Math.round((i / 5) * yMax), pad.left - 8, y + 5);
+  }
+  ctx.fillStyle = '#4a5068'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center';
+  for (let i = 0; i <= 5; i++) {
+    const x = pad.left + (i / 5) * cw;
+    ctx.fillText(Math.round((i / 5) * nPulls), x, H - pad.bottom + 18);
+  }
+  ctx.fillText('Pulls', pad.left + cw / 2, H - 2);
+
+  ctx.save(); ctx.translate(13, pad.top + ch / 2); ctx.rotate(-Math.PI / 2);
+  ctx.fillStyle = '#4a5068'; ctx.textAlign = 'center'; ctx.font = 'bold 15px sans-serif';
+  ctx.fillText('Avg Cumulative Reward', 0, 0); ctx.restore();
+
+  // Oracle line
+  ctx.beginPath();
+  ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+  mcResults.means.oracle.forEach((v, i) => {
+    const x = pad.left + (i / (nPulls - 1)) * cw;
+    const y = pad.top + ch - (v / yMax) * ch;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke(); ctx.setLineDash([]);
+
+  // Algorithm mean lines
+  const algoColors = { bandit: '#4f46e5', ucb: '#f59e0b', thompson: '#10b981' };
+  ['bandit', 'ucb', 'thompson'].forEach(key => {
+    ctx.beginPath();
+    ctx.strokeStyle = algoColors[key]; ctx.lineWidth = 4;
+    mcResults.means[key].forEach((v, i) => {
+      const x = pad.left + (i / (nPulls - 1)) * cw;
+      const y = pad.top + ch - (v / yMax) * ch;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  });
+}
+
+function renderMCStats() {
+  const { avgFinal, wins, N } = mcResults;
+  const oracleAvg = avgFinal.oracle;
+  const algos = [
+    { key: 'bandit',   label: 'Epsilon-Greedy',   color: '#4f46e5' },
+    { key: 'ucb',      label: 'UCB',               color: '#d97706' },
+    { key: 'thompson', label: 'Thompson Sampling', color: '#059669' },
+  ];
+  document.getElementById('mcStats').innerHTML =
+    `<div class="mc-stat-grid">` +
+    algos.map(a => `
+      <div class="mc-stat-card" style="border-top:3px solid ${a.color}">
+        <div class="mc-stat-name" style="color:${a.color}">${a.label}</div>
+        <div class="mc-stat-row">
+          <span class="mc-stat-label">Avg Reward</span>
+          <span class="mc-stat-val">${avgFinal[a.key].toFixed(1)}</span>
+        </div>
+        <div class="mc-stat-row">
+          <span class="mc-stat-label">Avg Regret</span>
+          <span class="mc-stat-val">${(oracleAvg - avgFinal[a.key]).toFixed(1)}</span>
+        </div>
+        <div class="mc-stat-row">
+          <span class="mc-stat-label">Win Rate</span>
+          <span class="mc-stat-val">${Math.round(wins[a.key] / N * 100)}%</span>
+        </div>
+      </div>`).join('') +
+    `</div>`;
+}
+
+document.getElementById('runMC').addEventListener('click', function () {
+  this.disabled = true;
+  this.textContent = 'Running…';
+  // Defer one frame so the button state renders before the sync computation
+  requestAnimationFrame(() => {
+    mcResults = runMonteCarlo();
+    drawMCChart();
+    renderMCStats();
+    this.textContent = '▶ Run Again';
+    this.disabled = false;
+  });
+});
+
+// ================================================================
+// INIT
+// ================================================================
+window.addEventListener('load', () => {
+  ['exploit','explore','bandit','ucb','thompson'].forEach(initPullBars);
+  clearThompsonCanvas();
+  drawMainChart();
+});
+
+window.addEventListener('resize', () => {
+  drawMainChart();
+  if (results.thompson) drawThompsonDist(animFrame);
+  if (mcResults) drawMCChart();
+});
+</script>
+</body>
+</html>
