@@ -242,7 +242,7 @@ canvas { width: 100%; display: block; border-radius: 6px; }
   </div>
   <div class="stage-body">
     <div class="stage-explanation" style="border-color:#ef4444;">
-      <strong style="color:#ef4444">Pure Exploitation</strong> pulls each machine 3 times to get initial data, then commits forever to whichever looked best. It decides quickly — but on very little evidence, so it often picks the wrong machine and never recovers.<br><br>
+      <strong style="color:#ef4444">Pure Exploitation</strong> tries machines one at a time (A, B, C, A, B, C…) and commits forever to the very first one that pays out. It makes a decision as fast as possible — but on a single lucky pull, so it very often locks onto the wrong machine and never recovers.<br><br>
       <strong style="color:#94a3b8">Pure Exploration</strong> picks randomly every single pull. It learns a lot about all three machines over time, but wastes its budget on machines it already knows are worse.
     </div>
     <div class="stage-controls">
@@ -251,7 +251,7 @@ canvas { width: 100%; display: block; border-radius: 6px; }
     <div class="algo-grid-2">
       <div class="algo-panel">
         <div class="algo-name" style="color:#ef4444">Pure Exploitation</div>
-        <div class="algo-logic">9-pull warmup (3 per machine), then commit forever to the best-looking machine</div>
+        <div class="algo-logic">Try A, B, C in order — commit forever to the first machine that pays out</div>
         <div class="pull-bars-title">Pull Distribution</div>
         <div class="pull-bars" id="bars-exploit"></div>
         <div class="algo-stats">
@@ -391,15 +391,15 @@ canvas { width: 100%; display: block; border-radius: 6px; }
 <div class="stage" id="stageMC">
   <div class="stage-header">
     <span class="stage-badge badge-mc">Monte Carlo</span>
-    <h2>100-Run Comparison</h2>
-    <span class="stage-desc-text">Run each algorithm 100 times to see which consistently wins.</span>
+    <h2>1,000-Run Comparison</h2>
+    <span class="stage-desc-text">Run each algorithm 1,000 times to see which consistently wins.</span>
   </div>
   <div class="stage-body">
     <div class="stage-explanation" style="border-color:#1d4ed8;">
-      A single run is noisy — any algorithm can get lucky. Running 100 simulations and averaging the results reveals which algorithm reliably finds the best machine faster. The chart shows the <strong>mean cumulative reward</strong> across all 100 runs for each algorithm.
+      A single run is noisy — any algorithm can get lucky. Running 1,000 simulations and averaging the results reveals which algorithm reliably finds the best machine faster. The chart shows the <strong>mean cumulative reward</strong> across all 1,000 runs for each algorithm.
     </div>
     <div class="stage-controls">
-      <button class="btn-mc" id="runMC">▶ Run 100 Simulations</button>
+      <button class="btn-mc" id="runMC">▶ Run 1,000 Simulations</button>
     </div>
     <canvas id="mcChart" height="300"></canvas>
     <div class="legend" id="mcLegend" style="margin-top:14px;">
@@ -491,21 +491,19 @@ function runOracle(rates, nPulls) {
 // SIMULATION FUNCTIONS
 // ================================================================
 function runPureExploit(rates, nPulls) {
-  const WARMUP = 9;
   let counts = [0,0,0], wins = [0,0,0], committed = -1, cumR = 0, history = [];
   for (let t = 0; t < nPulls; t++) {
     let choice;
-    if (t < WARMUP) {
-      choice = t % 3;
-    } else {
-      if (committed < 0) {
-        const obs = counts.map((c, i) => c > 0 ? wins[i]/c : 0);
-        committed = obs.indexOf(Math.max(...obs));
-      }
+    if (committed >= 0) {
       choice = committed;
+    } else {
+      // Cycle through machines until one pays out
+      choice = t % 3;
     }
     const r = Math.random() < rates[choice] ? 1 : 0;
     counts[choice]++; wins[choice] += r; cumR += r;
+    // Commit to the first machine that pays out
+    if (committed < 0 && r === 1) committed = choice;
     history.push({ choice, reward: r, cumReward: cumR, counts: [...counts], committed });
   }
   return { history, total: cumR };
@@ -903,6 +901,22 @@ function clearAll() {
   // Clear canvases
   clearThompsonCanvas();
   drawMainChart();
+
+  // Clear Monte Carlo
+  mcResults = null;
+  document.getElementById('mcStats').innerHTML = '';
+  const mcCanvas = document.getElementById('mcChart');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = mcCanvas.getBoundingClientRect();
+  mcCanvas.width  = rect.width * dpr;
+  mcCanvas.height = 300 * dpr;
+  const mcCtx = mcCanvas.getContext('2d');
+  mcCtx.scale(dpr, dpr);
+  mcCtx.fillStyle = '#ffffff';
+  mcCtx.fillRect(0, 0, rect.width, 300);
+  const mcBtn = document.getElementById('runMC');
+  mcBtn.textContent = '▶ Run 1,000 Simulations';
+  mcBtn.disabled = false;
 }
 
 // ================================================================
@@ -997,7 +1011,7 @@ document.getElementById('epsilonSlider').addEventListener('input', function () {
 let mcResults = null;
 
 function runMonteCarlo() {
-  const N = 100;
+  const N = 1000;
   const nPulls = cfg.nPulls;
   const bestRate = Math.max(...cfg.rates);
 
